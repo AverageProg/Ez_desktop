@@ -68,7 +68,7 @@ class MyWidget(Widget):
             ("show mouse coords(press q to stop)", self.show_mouse_coords),
             ("Show IP Address", self.show_ip),
             ("Show on Map", self.show_on_map),
-            ("Record Screen", self.record_screen_thread),
+            ("Record Screen(press q to stop)", self.record_screen),
             ("Clear Temp Files", self.clear_temp_files),
             ("Toggle Webcam", self.toggle_webcam),
             ("Take Picture", self.take_picture),
@@ -211,41 +211,42 @@ class MyWidget(Widget):
         return response.json()['ip']
 
     def record_screen(self, instance):
+        name = pyautogui.prompt("Enter name for recording")
+        if not name:
+            return pyautogui.alert("Recording canceled.")
+        self.output_file_name = name + ".mp4"
+
+        # Start recording in a new thread
+        threading.Thread(target=self.record_screen_thread, daemon=True).start()
+
+    def record_screen_thread(self):
         try:
-            self.output_file_name = pyautogui.prompt("enter name for recording") + ".mp4"
-            
-        except ValueError:
-            return pyautogui.alert("Enter a valid name")
+            screen_width, screen_height = pyautogui.size()
+            resolution = (screen_width, screen_height)
+            fps = 30.0
+            fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+            out = cv2.VideoWriter(self.output_file_name, fourcc, fps, resolution)
 
-        
-    
-    def record_screen_thread(self, output_file_name, resolution,screen_width, screen_height):
-        screen_width, screen_height = pyautogui.size()
-        resolution = (screen_width, screen_height)
-        fps = 30.0
-        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-        out = cv2.VideoWriter(output_file_name, fourcc, fps, resolution)
-
-        recording = True
-        if recording:
             pyautogui.alert("Recording started. Press 'q' to stop.")
 
-        while recording:
-            screen = pyautogui.screenshot()
-            frame = np.array(screen)
-            frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-            out.write(frame)
+            while True:
+                screen = pyautogui.screenshot()
+                frame = np.array(screen)
+                frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+                out.write(frame)
 
-            if keyboard.is_pressed("q"):
-                recording = False
+                if keyboard.is_pressed("q"):
+                    break
 
-        out.release()
-        cv2.destroyAllWindows()
+            out.release()
+            cv2.destroyAllWindows()
+            self.update_label("Recording saved!")
+
+        except Exception as e:
+            print("Error during recording:", e)
+            self.update_label("Recording failed.")
 
 
-
-
-        threading.Thread(target=self.record_screen, daemon=True).start()
 
     def clear_temp_files(self,instance):
         temp_dir = tempfile.gettempdir()
